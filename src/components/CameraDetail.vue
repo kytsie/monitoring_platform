@@ -1,5 +1,14 @@
 <template>
     <div class="main">
+        <div class="left-menu">
+            <div class="camera-list">
+                <div class="camera-item" v-for="camera in camera_list" :key="camera.id">
+                    <div class="van-ellipsis" @click="change_camera(camera.id)">{{camera.name}}</div>
+                </div>
+            </div>
+            <div class="left-menu-switch"><i class="mdui-icon material-icons arrow">keyboard_arrow_right</i></div>
+        </div>
+
         <div class="top-box">
             <div class="camera-box">
                 <video id="videoElement" class="video-box" controls autoplay width="100%" height="100%">Your browser is too old which doesn't support HTML5 video.</video>
@@ -14,7 +23,7 @@
             </div>
             <transition-group name="flip-list" enter-active-class="animated fadeInLeft" tag="div" class="list">
                 <div class="item" v-for="(item,index) in person_list" :key="index">
-                    <img :src="img_root + item" alt="" height="100%">
+                    <img :src="'data:image/jpg;base64,' + item" alt="" height="100%">
                 </div>
             </transition-group>
         </div>
@@ -24,7 +33,7 @@
             </div>
             <transition-group name="flip-list" enter-active-class="animated fadeInLeft" tag="div" class="list">
                 <div class="item" v-for="(item,index) in motor_list" :key="index">
-                    <img :src="img_root + item" alt="" height="100%">
+                    <img :src="'data:image/jpg;base64,' + item" alt="" height="100%">
                 </div>
             </transition-group>
         </div>
@@ -34,7 +43,7 @@
             </div>
             <transition-group name="flip-list" enter-active-class="animated fadeInLeft" tag="div" class="list">
                 <div class="item" v-for="(item,index) in car_list" :key="index">
-                    <img :src="img_root + item" alt="" height="100%">
+                    <img :src="'data:image/jpg;base64,' + item" alt="" height="100%">
                 </div>
             </transition-group>
         </div>
@@ -60,7 +69,7 @@
         },
         data() {
             return {
-                img_root:'http://localhost:8089/image/',
+                init:false,
                 id:'',
                 stream1:'',
                 echartOption:{
@@ -213,27 +222,50 @@
                 car_list: [],
                 person_list: [],
                 interval_obj:null,
-                player:null
+                player:null,
+                camera_list:[]
             }
         },
         methods:{
             add_pic() {
                 this.$axios.get('/get/picture').then(res=>{
                     if (res.data.code === 0) {
+
+                        if(this.init===false){
+                            this.init = true;
+                            return;
+                        }
+                        let car_growth = res.data.data[0].picGrowth[0];
+                        let person_growth = res.data.data[0].picGrowth[1];
+                        let motor_growth = res.data.data[0].picGrowth[2];
+
+                        let d = new Date();
+                        d.setTime(d.getTime()-d.getTimezoneOffset()*60000);
+                        let now = d.toJSON().slice(0,-5);
+                        d.setTime(d.getTime()-20*1000);
+
+                        this.echartOption.xAxis.min = d.toJSON().slice(0, -5);
+                        this.echartOption.xAxis.max = now;
+                        this.echartOption.series[0].data.push([now,person_growth]);
+                        this.echartOption.series[1].data.push([now,motor_growth]);
+                        this.echartOption.series[2].data.push([now,car_growth]);
+
+                        this.echartOption = this.echartOption;
+
                         for(let i=0; i<10; i++) {
-                            let motor = 'motor/'+res.data.data[0].motor[i];
-                            if (this.motor_list.indexOf(motor) < 0) {
-                                this.motor_list.push(motor)
+                            let motor = res.data.data[0].motor[i];
+                            if (motor!==undefined) {
+                                this.motor_list.push(motor.replace(/\\r\\n/g,''))
                             }
 
-                            let car = 'car/'+res.data.data[0].car[i];
-                            if (this.car_list.indexOf(car) < 0) {
-                                this.car_list.push(car)
+                            let car = res.data.data[0].car[i];
+                            if (car!==undefined) {
+                                this.car_list.push(car.replace(/\\r\\n/g,''))
                             }
 
-                            let person = 'person/'+res.data.data[0].person[i];
-                            if (this.person_list.indexOf(person) < 0) {
-                                this.person_list.push(person)
+                            let person = res.data.data[0].person[i];
+                            if (person!==undefined) {
+                                this.person_list.push(person.replace(/\\r\\n/g,''))
                             }
                         }
                     } else {
@@ -252,51 +284,12 @@
             begin_add() {
                 if (this.interval_obj !== null) return;
                 this.interval_obj = setInterval(()=>{
-                    this.add_pic();
-                    this.get_count()
+                    this.add_pic()
                 },1000)
             },
             stop_add() {
                 clearInterval(this.interval_obj);
                 this.interval_obj = null;
-            },
-            get_count(){
-                this.$axios.get('/get/picture/growth').then(res=>{
-                    if (res.data.code === 0) {
-                        let mount1 = res.data.data[0].person;
-                        let mount2 = res.data.data[0].motor;
-                        let mount3 = res.data.data[0].car;
-
-                        let d = new Date();
-                        d.setTime(d.getTime()-d.getTimezoneOffset()*60000);
-                        let now = d.toJSON().slice(0,-5);
-                        d.setTime(d.getTime()-20*1000);
-
-                        this.echartOption.xAxis.min = d.toJSON().slice(0, -5);
-                        this.echartOption.xAxis.max = now;
-                        this.echartOption.series[0].data.push([now,mount1]);
-                        this.echartOption.series[1].data.push([now,mount2]);
-                        this.echartOption.series[2].data.push([now,mount3]);
-
-                        if(this.echartOption.series[0].data.length>22){
-                            this.echartOption.series[0].data.splice(0,1);
-                            this.echartOption.series[1].data.splice(0,1);
-                            this.echartOption.series[2].data.splice(0,1);
-                        }
-
-                        this.echartOption = this.echartOption;
-                    } else {
-                        Notify({
-                            message:res.data.msg,
-                            type:'danger'
-                        })
-                    }
-                }).catch(error=>{
-                    Notify({
-                        message:error.toString(),
-                        type:'danger'
-                    })
-                })
             },
             player_init(){
                 this.player = document.getElementById('videoElement');
@@ -310,6 +303,52 @@
                     flvPlayer.load();
                     this.player.play();
                 }
+            },
+            get_list() {
+                this.$axios.get('/get/address/all').then(res=>{
+                    if (res.data.code === 0) {
+                        let list = res.data.data;
+
+                        for(let i=0; i<list.length; i++) {
+                            list[i].show = false
+                        }
+
+                        this.camera_list = list;
+                    } else {
+                        Notify({
+                            message:res.data.msg,
+                            type:'danger'
+                        })
+                    }
+                }).catch(error=>{
+                    Notify({
+                        message:error.toString(),
+                        type:'danger'
+                    })
+                })
+            },
+            stream_init() {
+                this.$axios.get('/get/address/'+this.id).then(res=>{
+                    if (res.data.code === 0) {
+                        this.stream1 = res.data.data[0].stream1;
+                        this.stream2 = res.data.data[0].stream2;
+                        this.player_init()
+                    } else {
+                        Notify({
+                            message:res.data.msg,
+                            type:'danger'
+                        })
+                    }
+                }).catch(error=>{
+                    Notify({
+                        message:error.toString(),
+                        type:'danger'
+                    })
+                })
+            },
+            change_camera(id) {
+                this.id = id;
+                this.stream_init();
             }
         },
         beforeCreate(){
@@ -322,25 +361,11 @@
             if(this.id===undefined){
                 this.$router.go(-1)
             }
+            this.get_list();
         },
         mounted() {
             this.begin_add();
-            this.$axios.get('/get/address/'+this.id).then(res=>{
-                if (res.data.code === 0) {
-                    this.stream1 = res.data.data[0].stream1;
-                    this.player_init()
-                } else {
-                    Notify({
-                        message:res.data.msg,
-                        type:'danger'
-                    })
-                }
-            }).catch(error=>{
-                Notify({
-                    message:error.toString(),
-                    type:'danger'
-                })
-            })
+            this.stream_init();
         },
         beforeDestroy() {
             clearInterval(this.interval_obj);
@@ -422,5 +447,65 @@
 
     .video-box {
         background-color: #000000;
+    }
+
+    .left-menu {
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 10;
+        width: 250px;
+        height: 100%;
+        transition: all 0.2s ease;
+        transform: translateX(-250px);
+    }
+
+    .arrow {
+        transition: all 0.2s ease;
+    }
+
+    .left-menu:hover {
+        transform: translateX(0);
+    }
+
+    .left-menu:hover .arrow {
+        transform: rotate(180deg);
+    }
+
+    .camera-list {
+        width: 250px;
+        padding-top: 20px;
+        height: calc(100% - 50px + 60px);
+        overflow-y: scroll;
+        overflow-x: hidden;
+        background-color: rgba(115, 115, 115, 0.7);
+    }
+
+    .camera-item {
+        box-sizing: border-box;
+        color: #fff;
+        height: 50px;
+        line-height: 50px;
+        padding: 0 20px;
+        width: 220px;
+        margin-left: 5px;
+        border: 1px solid rgba(0,0,0,0);
+    }
+
+    .camera-item:hover {
+        border: 1px solid white;
+        cursor: pointer;
+    }
+
+    .left-menu-switch {
+        z-index: 100;
+        position: absolute;
+        width: 30px;
+        height: 60px;
+        right: -30px;
+        top: calc(50% - 60px);
+        line-height: 60px;
+        background: linear-gradient(to bottom right, rgb(132,195,228),rgb(203,181,216));
+        text-align: center;
     }
 </style>

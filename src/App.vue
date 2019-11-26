@@ -5,8 +5,7 @@
         <router-link to="/nav" class="mdui-typo-headline">{{mainTitle}}</router-link>
         <a href="javascript:;" class="mdui-btn" v-show="history_back" @click="$router.go(-1)"><i class="mdui-icon material-icons">arrow_back</i>返回上一级</a>
         <div class="mdui-toolbar-spacer"></div>
-        <a href="javascript:;" class="mdui-btn mdui-btn-icon"><i class="mdui-icon material-icons">search</i></a>
-        <a href="javascript:;" class="mdui-btn mdui-btn-icon" @click="logout"><i class="mdui-icon material-icons">close</i></a>
+        <a href="javascript:;" class="mdui-btn" @click="logout"><i class="mdui-icon material-icons">close</i>离开</a>
       </div>
     </div>
     <transition enter-active-class="animated fadeInRight">

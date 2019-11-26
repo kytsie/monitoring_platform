@@ -1,5 +1,14 @@
 <template>
     <div>
+        <div class="left-menu">
+            <div class="camera-list">
+                <div class="camera-item" v-for="camera in camera_list" :key="camera.id">
+                    <div class="van-ellipsis" @click="change_camera(camera.id)">{{camera.name}}</div>
+                </div>
+            </div>
+            <div class="left-menu-switch"><i class="mdui-icon material-icons arrow">keyboard_arrow_right</i></div>
+        </div>
+
         <div class="video-panel">
             <div :class="{live1:true, width100:true, width50:double_screen}">
                 <video id="videoElement1" class="video-box" controls autoplay width="100%" height="100%">Your browser is too old which doesn't support HTML5 video.</video>
@@ -13,7 +22,7 @@
             <div class="content" @mouseover="stop_add" @mouseout="begin_add">
                 <transition-group name="flip-list" enter-active-class="animated fadeInLeft" tag="div" class="list">
                     <div class="item" v-for="(item,index) in pic_list" :key="index">
-                        <img :src="img_root + item" alt="" height="100%">
+                        <img :src="'data:image/jpg;base64,' + item" alt="" height="100%">
                     </div>
                 </transition-group>
                 <div class="btn-group">
@@ -34,53 +43,17 @@
         name: "CameraLive",
         data() {
             return {
-                img_root:'http://localhost:8089/image/',
                 id:0, // 获取传递过来的id值
                 name:'测试卡口监控1', // 卡口名称
                 stream1:'', //
                 stream2:'',
-                playerOptions1: {
-                    autoplay: true, //如果true,浏览器准备好时开始回放。
-                    muted: false, // 默认情况下将会消除任何音频。
-                    language: 'zh-CN',
-                    sources: [{
-                        type: "application/x-mpegURL",
-                        src: "" //你的m3u8地址（必填）
-                    }],
-                    notSupportedMessage: '此视频暂无法播放，请稍后再试', //允许覆盖Video.js无法播放媒体源时显示的默认信息。
-                    fill: true,
-                    height:document.documentElement.clientHeight,
-                    controlBar: {
-                        timeDivider: false,
-                        durationDisplay: false,
-                        remainingTimeDisplay: false,
-                        fullscreenToggle: true  //全屏按钮
-                    }
-                },
-                playerOptions2: {
-                    autoplay: true, //如果true,浏览器准备好时开始回放。
-                    muted: false, // 默认情况下将会消除任何音频。
-                    language: 'zh-CN',
-                    sources: [{
-                        type: "application/x-mpegURL",
-                        src: "http://192.168.28.1:10080/hls/BhPxX1JWR/BhPxX1JWR_live.m3u8" //你的m3u8地址（必填）
-                    }],
-                    notSupportedMessage: '此视频暂无法播放，请稍后再试', //允许覆盖Video.js无法播放媒体源时显示的默认信息。
-                    fill: true,
-                    height:document.documentElement.clientHeight,
-                    controlBar: {
-                        timeDivider: false,
-                        durationDisplay: false,
-                        remainingTimeDisplay: false,
-                        fullscreenToggle: true  //全屏按钮
-                    }
-                },
                 double_screen:false,
                 show_bottom_panel:false,
                 pic_list:[],
                 interval_obj:null,
                 player1:null,
-                player2:null
+                player2:null,
+                camera_list:[]
             }
         },
         methods:{
@@ -89,19 +62,23 @@
                     if (res.data.code === 0) {
                         for(let i=0; i<2; i++) {
 
-                            let motor = 'motor/'+res.data.data[0].motor[i];
-                            if (motor!==undefined && this.pic_list.indexOf(motor) < 0) {
-                                this.pic_list.push(motor)
+                            let motor = res.data.data[0].motor[i];
+                            if (motor!==undefined) {
+                                this.pic_list.push(motor.replace(/\\r\\n/g,''));
+                                // eslint-disable-next-line no-console
+                                console.log(motor.replace(/\\r\\n/g,''));
                             }
 
-                            let car = 'car/'+res.data.data[0].car[i];
-                            if (car!==undefined && this.pic_list.indexOf(car) < 0) {
-                                this.pic_list.push(car)
+                            let car = res.data.data[0].car[i];
+                            if (car!==undefined) {
+                                this.pic_list.push(car.replace(/\\r\\n/g,''))
+                                // eslint-disable-next-line no-console
+                                console.log(car.replace(/\\r\\n/g,''));
                             }
 
-                            let person = 'person/'+res.data.data[0].person[i];
-                            if (person!==undefined && this.pic_list.indexOf(person) < 0) {
-                                this.pic_list.push(person)
+                            let person = res.data.data[0].person[i];
+                            if (person!==undefined) {
+                                this.pic_list.push(person.replace(/\\r\\n/g,''))
                             }
                         }
                     } else {
@@ -127,6 +104,7 @@
                 clearInterval(this.interval_obj)
                 this.interval_obj = null;
             },
+            // 初始化直播
             player_init() {
                 this.player1 = document.getElementById('videoElement1');
                 this.player2 = document.getElementById('videoElement2');
@@ -148,12 +126,52 @@
                     this.player1.play();
                     this.player2.play();
                 }
-            }
-        },
-        beforeMount() {
-            this.id = this.$route.query.id;
-            if(this.id === undefined) {
-                this.$router.go(-1);
+            },
+            get_list() {
+                this.$axios.get('/get/address/all').then(res=>{
+                    if (res.data.code === 0) {
+                        let list = res.data.data;
+
+                        for(let i=0; i<list.length; i++) {
+                            list[i].show = false
+                        }
+
+                        this.camera_list = list;
+                    } else {
+                        Notify({
+                            message:res.data.msg,
+                            type:'danger'
+                        })
+                    }
+                }).catch(error=>{
+                    Notify({
+                        message:error.toString(),
+                        type:'danger'
+                    })
+                })
+            },
+            stream_init() {
+                this.$axios.get('/get/address/'+this.id).then(res=>{
+                    if (res.data.code === 0) {
+                        this.stream1 = res.data.data[0].stream1;
+                        this.stream2 = res.data.data[0].stream2;
+                        this.player_init()
+                    } else {
+                        Notify({
+                            message:res.data.msg,
+                            type:'danger'
+                        })
+                    }
+                }).catch(error=>{
+                    Notify({
+                        message:error.toString(),
+                        type:'danger'
+                    })
+                })
+            },
+            change_camera(id) {
+                this.id = id;
+                this.stream_init();
             }
         },
         beforeCreate(){
@@ -161,25 +179,16 @@
                 this.$router.push('/login')
             }
         },
+        beforeMount() {
+            this.id = this.$route.query.id;
+            if(this.id === undefined) {
+                this.$router.go(-1);
+            }
+            this.get_list()
+        },
         mounted(){
             this.begin_add();
-            this.$axios.get('/get/address/'+this.id).then(res=>{
-                if (res.data.code === 0) {
-                    this.stream1 = res.data.data[0].stream1;
-                    this.stream2 = res.data.data[0].stream2;
-                    this.player_init()
-                } else {
-                    Notify({
-                        message:res.data.msg,
-                        type:'danger'
-                    })
-                }
-            }).catch(error=>{
-                Notify({
-                    message:error.toString(),
-                    type:'danger'
-                })
-            })
+            this.stream_init();
         },
         beforeDestroy() {
             clearInterval(this.interval_obj);
@@ -287,5 +296,65 @@
 
     .video-box {
         background-color: #000000;
+    }
+
+    .left-menu {
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 10;
+        width: 250px;
+        height: 100%;
+        transition: all 0.2s ease;
+        transform: translateX(-250px);
+    }
+
+    .arrow {
+        transition: all 0.2s ease;
+    }
+
+    .left-menu:hover {
+        transform: translateX(0);
+    }
+
+    .left-menu:hover .arrow {
+        transform: rotate(180deg);
+    }
+
+    .camera-list {
+        width: 250px;
+        padding-top: 20px;
+        height: calc(100% - 50px + 60px);
+        overflow-y: scroll;
+        overflow-x: hidden;
+        background-color: rgba(115, 115, 115, 0.7);
+    }
+
+    .camera-item {
+        box-sizing: border-box;
+        color: #fff;
+        height: 50px;
+        line-height: 50px;
+        padding: 0 20px;
+        width: 220px;
+        margin-left: 5px;
+        border: 1px solid rgba(0,0,0,0);
+    }
+
+    .camera-item:hover {
+        border: 1px solid white;
+        cursor: pointer;
+    }
+
+    .left-menu-switch {
+        z-index: 100;
+        position: absolute;
+        width: 30px;
+        height: 60px;
+        right: -30px;
+        top: calc(50% - 60px);
+        line-height: 60px;
+        background: linear-gradient(to bottom right, rgb(132,195,228),rgb(203,181,216));
+        text-align: center;
     }
 </style>
